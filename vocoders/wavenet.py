@@ -45,23 +45,23 @@ class ResBlock(nn.Module):
     def forward(self, inputs):
         x, skip = inputs
 
-        # print("Input shape: ", x.shape)
+        print("Input shape: ", x.shape)
         x = self.dilated_conv(x)
-        # print("After Dilated Conv shape: ", x.shape)
+        print("After Dilated Conv shape: ", x.shape)
         
         filter_x = self.filter_conv(x)
-        # print("After Filter Conv shape: ", filter_x.shape)
+        print("After Filter Conv shape: ", filter_x.shape)
         filter_x = torch.tanh(filter_x)
 
         gate_x = self.gate_conv(x)
-        # print("After Gate Conv shape: ", gate_x.shape)
+        print("After Gate Conv shape: ", gate_x.shape)
         gate_x = torch.sigmoid(gate_x)
 
         x = filter_x * gate_x
-        # print("After Gating shape: ", x.shape)
+        print("After Gating shape: ", x.shape)
 
         skip_x = self.conv_2(x)
-        # print("After Conv_2 (Skip connection) shape: ", skip_x.shape)
+        print("After Conv_2 (Skip connection) shape: ", skip_x.shape)
         
         try:
             skip = skip[:, :, -x.size(2):]
@@ -69,12 +69,12 @@ class ResBlock(nn.Module):
             skip = 0
 
         skip = skip_x + skip
-        # print("After Skip Connection shape: ", skip.shape)
+        print("After Skip Connection shape: ", skip.shape)
 
         res_x = self.residual_conv(x)
-        # print("After Residual Conv shape: ", res_x.shape)
+        print("After Residual Conv shape: ", res_x.shape)
         x = x + res_x
-        # print("After Residual Addition shape: ", x.shape)
+        print("After Residual Addition shape: ", x.shape)
 
         return x, skip
 
@@ -102,26 +102,26 @@ class WaveNet(nn.Module, PyTorchModelHubMixin):
         self.upsample = Upsample1D(scale_factor=[[11, 25]])
         
     def forward(self, inputs):
-        # print("Inputs Shape: ", inputs.shape)
+        print("Inputs Shape: ", inputs.shape)
         x = self.start_conv(inputs)
-        # print("Shape after Start Convolution: ", x.shape)
+        print("Shape after Start Convolution: ", x.shape)
         skip = 0
         
         # Process through residual blocks
         for i, layer in enumerate(self.layers):
-            # print("Dilation: ", 2**i)
+            print("Dilation: ", 2**i)
             x, skip = layer((x, skip))
-            # print(f"After Layer {i}: ", x.shape, skip.shape)
+            print(f"After Layer {i}: ", x.shape, skip.shape)
 
         # Apply final convolutions
         x = F.relu(skip)
         x = F.relu(self.end_conv_1(x))
         x = self.end_conv_2(x)
-        # print("Shape after Final Convolutions: ", x.shape)
+        print("Shape after Final Convolutions: ", x.shape)
         
         # Apply upsampling at the end
         x = self.upsample(x)
-        # print("Shape after Upsampling: ", x.shape)
+        print("Shape after Upsampling: ", x.shape)
 
         return x
          
