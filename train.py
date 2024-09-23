@@ -1,4 +1,4 @@
-from dataset import SpecVocoderDataset
+from dataset import SpecVocoderDataset, collate_fn
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -20,8 +20,8 @@ train_dataset = SpecVocoderDataset(training_files=train_files)
 val_dataset = SpecVocoderDataset(training_files=val_files)
 
 ## Create Dataloader
-train_dataloader = DataLoader(train_dataset, shuffle=True)
-val_dataloader = DataLoader(val_dataset, shuffle=True)
+train_dataloader = DataLoader(train_dataset, shuffle=True, batch_size=2, collate_fn=collate_fn)
+val_dataloader = DataLoader(val_dataset, shuffle=True, batch_size=2, collate_fn=collate_fn)
 
 ## Define Model
 model = WaveNet(in_channels=80, residual_channels=128, skip_channels=128, out_channels=256, residual_blocks=19)
@@ -34,27 +34,44 @@ def train(model, train_dataloader, optimizer, criterion):
     model.train()
     
     for i, (melspec, waveform) in enumerate(train_dataloader):
+        if torch.isnan(melspec).any():
+            print("Inputs contain NaN values.")
+
         optimizer.zero_grad()
 
         output = model(melspec)
 
-        preds = torch.argmax(torch.softmax(output, axis=1), axis=1).squeeze(0)
+        # Check for NaN in output
+        if torch.isnan(output).any():
+            print("Output contains NaN values.")
+            continue
+
+        preds = torch.argmax(torch.softmax(output, dim=1), dim=1).squeeze(0)
 
         compressed_audio = mu_law_encoding(waveform, 255)
-
         padded_output = pad_to_nearest_divisible(compressed_audio, 275)
+
+        padded_output = padded_output.view(-1).long()  # Flatten if necessary
+
+        if (padded_output < 0).any() or (padded_output >= num_classes).any():
+            print("Padded output contains invalid target values.")
+            continue
 
         loss_value = criterion(output, padded_output)
 
+        if loss_value is None or torch.isnan(loss_value):
+            print("Loss computation returned NaN. Check output and target shapes.")
+            continue
+
         loss_value.backward()
-        optimizer.step()
 
-        accuracy = accuracy_score(padded_output.squeeze(0), preds)
-        
-        if i % 10 == 0:
-            print(f"Step {i}, Loss: {loss_value.item()}, Accuracy: {accuracy}")
-
-    print("Training completed.")
+        # Check gradients for NaN
+        for param in model.parameters():
+            if param.grad is not None and torch.isnan(param.grad).any():
+                print("Gradient contains NaN values.")
+                break
+        else:
+            optimizer.step()  # Only update if no NaN in gradients
 
 ## evaluation script 
 def validate(model, val_dataloader, criterion):
@@ -73,6 +90,8 @@ def validate(model, val_dataloader, criterion):
 
             # Mu-law encoding of waveform
             compressed_audio = mu_law_encoding(waveform, 255)
+
+            print(compressed_audio.shape)
 
             # Ensure the output and target sizes match (pad if needed)
             padded_output = pad_to_nearest_divisible(compressed_audio, 275)

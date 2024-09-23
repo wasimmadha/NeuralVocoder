@@ -1,4 +1,5 @@
 import os
+import torch
 
 def find_audio_files(folder_path, extensions=('.flac', '.wav')):
     """
@@ -32,7 +33,8 @@ def pad_to_nearest_divisible(tensor, divisor):
     
     # Pad the tensor with zeros
     if padding_amount > 0:
-        padded_tensor = torch.nn.functional.pad(tensor, (-1, padding_amount), mode='constant', value=0)
+        # Here, we only pad the last dimension (length)
+        padded_tensor = torch.nn.functional.pad(tensor, (0, padding_amount), mode='constant', value=0)
     else:
         padded_tensor = tensor
         

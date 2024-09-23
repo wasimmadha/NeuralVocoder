@@ -1,6 +1,6 @@
 import torch.nn as nn
 from huggingface_hub import PyTorchModelHubMixin
-from layers import DilatedConvolution1D, constant_pad_1d
+from vocoders.layers import DilatedConvolution1D, constant_pad_1d
 import torch.nn.functional as F
 import torch
 from torch.autograd import Variable
@@ -100,7 +100,18 @@ class WaveNet(nn.Module, PyTorchModelHubMixin):
                                     kernel_size=1, bias=False)
 
         self.upsample = Upsample1D(scale_factor=[[11, 25]])
+
+        self._initialize_weights()
         
+    def _initialize_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv1d):
+                # Kaiming initialization
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+            elif isinstance(m, nn.BatchNorm1d):
+                nn.init.ones_(m.weight)
+                nn.init.zeros_(m.bias)
+   
     def forward(self, inputs):
         # print("Inputs Shape: ", inputs.shape)
         x = self.start_conv(inputs)
